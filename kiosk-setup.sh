@@ -2,7 +2,7 @@
 
 echo "=== Raspberry Pi 5 Digital Signage Setup (Minimal Desktop mit funktionierendem Xorg) ==="
 
-WEBSITE_URL="https://lvm.arsolex.tech"
+WEBSITE_URL="https://test.test.tech"
 FALLBACK_URL="file:///home/pi/offline/index.html"
 
 echo "→ System aktualisieren..."
