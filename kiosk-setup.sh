@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "=== Raspberry Pi 5 Digital Signage Setup (Minimal Desktop) ==="
+echo "=== Raspberry Pi 5 Digital Signage Setup (Minimal Desktop mit funktionierendem Xorg) ==="
 
 WEBSITE_URL="https://lvm.arsolex.tech"
 FALLBACK_URL="file:///home/pi/offline/index.html"
@@ -15,7 +15,7 @@ echo "→ Openbox installieren (leichtester Window Manager)..."
 sudo apt install --no-install-recommends -y openbox
 
 echo "→ Chromium installieren..."
-sudo apt install -y chromium-browser
+sudo apt install -y chromium
 
 echo "→ unclutter installieren (Mauszeiger ausblenden)..."
 sudo apt install -y unclutter
@@ -43,12 +43,26 @@ iwconfig wlan0 power off
 EOF'
 sudo chmod +x /etc/network/if-up.d/wlan-reconnect
 
-echo "→ Openbox Autostart konfigurieren..."
-mkdir -p ~/.config/openbox
-cat > ~/.config/openbox/autostart <<EOF
+echo "→ Xorg für Raspberry Pi konfigurieren..."
+sudo mkdir -p /etc/X11/xorg.conf.d
+sudo bash -c 'cat > /etc/X11/xorg.conf.d/99-pi.conf <<EOF
+Section "Device"
+  Identifier "Raspberry Pi GPU"
+  Driver "modesetting"
+  Option "AccelMethod" "glamor"
+  Option "DRI" "2"
+EndSection
+EOF'
+
+echo "→ .xinitrc für Openbox + Chromium erstellen..."
+cat > ~/.xinitrc <<EOF
+#!/bin/bash
+export DISPLAY=:0
+openbox-session &
 unclutter &
 chromium --kiosk $WEBSITE_URL --noerrdialogs --disable-infobars --disable-session-crashed-bubble &
 EOF
+chmod +x ~/.xinitrc
 
 echo "→ Kiosk-Start über ~/.bash_profile einrichten..."
 cat >> ~/.bash_profile <<EOF
@@ -73,6 +87,7 @@ EOF
 echo "→ Browser-Watchdog erstellen..."
 cat > ~/kiosk-watchdog.sh <<EOF
 #!/bin/bash
+export DISPLAY=:0
 while true; do
     if ! pgrep -x "chromium" > /dev/null; then
         chromium --kiosk $WEBSITE_URL --noerrdialogs --disable-infobars &
@@ -80,7 +95,6 @@ while true; do
     sleep 10
 done
 EOF
-
 chmod +x ~/kiosk-watchdog.sh
 
 echo "→ Browser-Watchdog in Autostart eintragen..."
@@ -95,7 +109,7 @@ EOF
 echo "→ Netzwerk-Watchdog erstellen..."
 cat > ~/network-watchdog.sh <<EOF
 #!/bin/bash
-
+export DISPLAY=:0
 WEBSITE_URL="$WEBSITE_URL"
 FALLBACK_URL="$FALLBACK_URL"
 
@@ -108,7 +122,6 @@ while true; do
     sleep 10
 done
 EOF
-
 chmod +x ~/network-watchdog.sh
 
 echo "→ Netzwerk-Watchdog in Autostart eintragen..."
@@ -134,4 +147,3 @@ sudo bash -c '(crontab -l 2>/dev/null; echo "0 4 * * * /sbin/reboot") | crontab 
 
 echo "=== Installation abgeschlossen ==="
 echo "Bitte Raspberry Pi neu starten."
-
