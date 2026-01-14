@@ -43,14 +43,12 @@ iwconfig wlan0 power off
 EOF'
 sudo chmod +x /etc/network/if-up.d/wlan-reconnect
 
-echo "→ Xorg für Raspberry Pi konfigurieren..."
+echo "→ Xorg für Raspberry Pi konfigurieren (fbdev)..."
 sudo mkdir -p /etc/X11/xorg.conf.d
 sudo bash -c 'cat > /etc/X11/xorg.conf.d/99-pi.conf <<EOF
-Section "Device"
-  Identifier "Raspberry Pi GPU"
-  Driver "modesetting"
-  Option "AccelMethod" "glamor"
-  Option "DRI" "2"
+Section \"Device\"
+    Identifier \"Raspberry Pi FB\"
+    Driver \"fbdev\"
 EndSection
 EOF'
 
@@ -60,7 +58,7 @@ cat > ~/.xinitrc <<EOF
 export DISPLAY=:0
 openbox-session &
 unclutter &
-chromium --kiosk $WEBSITE_URL --noerrdialogs --disable-infobars --disable-session-crashed-bubble &
+chromium --kiosk $WEBSITE_URL --noerrdialogs --disable-infobars --disable-session-crashed-bubble --autoplay-policy=no-user-gesture-required &
 EOF
 chmod +x ~/.xinitrc
 
@@ -68,18 +66,18 @@ echo "→ Kiosk-Start über ~/.bash_profile einrichten..."
 cat >> ~/.bash_profile <<EOF
 
 # Auto-start X + Openbox + Chromium mit Delay + Internet-Check
-if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ]; then
+if [ -z \"\$DISPLAY\" ] && [ \"\$(tty)\" = \"/dev/tty1\" ]; then
 
-  echo "Warte 20 Sekunden, damit Netzwerk + große Videos laden können..."
+  echo \"Warte 20 Sekunden, damit Netzwerk + große Videos laden können...\"
   sleep 20
 
-  echo "Prüfe Internetverbindung..."
+  echo \"Prüfe Internetverbindung...\"
   while ! ping -c 1 8.8.8.8 >/dev/null 2>&1; do
-      echo "Noch kein Internet – warte..."
+      echo \"Noch kein Internet – warte...\"
       sleep 2
   done
 
-  echo "Internet verfügbar – starte X + Openbox."
+  echo \"Internet verfügbar – starte X + Openbox.\"
   startx
 fi
 EOF
@@ -89,8 +87,8 @@ cat > ~/kiosk-watchdog.sh <<EOF
 #!/bin/bash
 export DISPLAY=:0
 while true; do
-    if ! pgrep -x "chromium" > /dev/null; then
-        chromium --kiosk $WEBSITE_URL --noerrdialogs --disable-infobars &
+    if ! pgrep -x \"chromium\" > /dev/null; then
+        chromium --kiosk $WEBSITE_URL --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required &
     fi
     sleep 10
 done
@@ -110,14 +108,14 @@ echo "→ Netzwerk-Watchdog erstellen..."
 cat > ~/network-watchdog.sh <<EOF
 #!/bin/bash
 export DISPLAY=:0
-WEBSITE_URL="$WEBSITE_URL"
-FALLBACK_URL="$FALLBACK_URL"
+WEBSITE_URL=\"$WEBSITE_URL\"
+FALLBACK_URL=\"$FALLBACK_URL\"
 
 while true; do
     if ping -c 1 8.8.8.8 >/dev/null 2>&1; then
-        xdotool search --onlyvisible --class chromium windowactivate --sync key --clearmodifiers "ctrl+l" type "\$WEBSITE_URL" key Return
+        xdotool search --onlyvisible --class chromium windowactivate --sync key --clearmodifiers \"ctrl+l\" type \"\$WEBSITE_URL\" key Return
     else
-        xdotool search --onlyvisible --class chromium windowactivate --sync key --clearmodifiers "ctrl+l" type "\$FALLBACK_URL" key Return
+        xdotool search --onlyvisible --class chromium windowactivate --sync key --clearmodifiers \"ctrl+l\" type \"\$FALLBACK_URL\" key Return
     fi
     sleep 10
 done
@@ -136,14 +134,14 @@ echo "→ Offline-Fallback vorbereiten..."
 mkdir -p ~/offline
 cat > ~/offline/index.html <<EOF
 <html>
-  <body style="background:black;color:white;font-size:40px;text-align:center;padding-top:20%;">
+  <body style=\"background:black;color:white;font-size:40px;text-align:center;padding-top:20%;\">
     <p>Offline – Verbindung wird wiederhergestellt…</p>
   </body>
 </html>
 EOF
 
 echo "→ Täglichen Reboot um 04:00 Uhr einrichten..."
-sudo bash -c '(crontab -l 2>/dev/null; echo "0 4 * * * /sbin/reboot") | crontab -'
+sudo bash -c '(crontab -l 2>/dev/null; echo \"0 4 * * * /sbin/reboot\") | crontab -'
 
 echo "=== Installation abgeschlossen ==="
 echo "Bitte Raspberry Pi neu starten."
