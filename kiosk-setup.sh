@@ -1,10 +1,6 @@
 #!/bin/bash
 
-echo "=== Raspberry Pi 5 Digital Signage Setup – Voll optimiert mit Config & Logging ==="
-
-# ==========================
-# Basis-Pfade & Config
-# ==========================
+echo "=== Raspberry Pi 5 Digital Signage Setup – Voll optimiert ==="
 
 USER="pi"
 USER_HOME="/home/$USER"
@@ -12,7 +8,6 @@ CONFIG_FILE="$USER_HOME/kiosk.conf"
 LOG_DIR="$USER_HOME/kiosk-logs"
 LOG_FILE="$LOG_DIR/kiosk.log"
 
-echo "→ Log-Verzeichnis anlegen..."
 mkdir -p "$LOG_DIR"
 touch "$LOG_FILE"
 
@@ -20,55 +15,44 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S')  $1" | tee -a "$LOG_FILE"
 }
 
-log "Starte Setup..."
+log "Setup gestartet."
 
 # ==========================
-# Config-Datei anlegen (falls nicht vorhanden)
+# Config-Datei
 # ==========================
 
 if [ ! -f "$CONFIG_FILE" ]; then
-  echo "→ Config-Datei $CONFIG_FILE erstellen..."
   cat > "$CONFIG_FILE" <<EOF
 WEBSITE_URL=https://test.test.tech
 FALLBACK_URL=file://$USER_HOME/offline/index.html
 EOF
-  log "Config-Datei erstellt mit Default-URLs."
+  log "Config-Datei erstellt."
 else
-  echo "→ Config-Datei $CONFIG_FILE existiert bereits – wird verwendet."
-  log "Config-Datei gefunden."
+  log "Config-Datei existiert bereits."
 fi
 
-# Config laden
-# shellcheck disable=SC1090
 source "$CONFIG_FILE"
 
-log "Config geladen: WEBSITE_URL=$WEBSITE_URL, FALLBACK_URL=$FALLBACK_URL"
+log "Config geladen: WEBSITE_URL=$WEBSITE_URL FALLBACK_URL=$FALLBACK_URL"
 
 # ==========================
 # System & Pakete
 # ==========================
 
-echo "→ System aktualisieren..."
 sudo apt update && sudo apt upgrade -y
 log "System aktualisiert."
 
-echo "→ Minimalen X-Server + Openbox installieren..."
 sudo apt install --no-install-recommends -y xserver-xorg x11-xserver-utils xinit openbox
-log "X-Server + Openbox installiert."
-
-echo "→ Chromium + Tools installieren..."
 sudo apt install -y chromium unclutter xdotool curl
-log "Chromium, unclutter, xdotool, curl installiert."
+log "Pakete installiert."
 
-echo "→ Autologin auf Konsole aktivieren..."
 sudo raspi-config nonint do_boot_behaviour B2
-log "Autologin auf tty1 aktiviert."
+log "Autologin aktiviert."
 
 # ==========================
 # GPU / HDMI / Performance
 # ==========================
 
-echo "→ HDMI aktiv halten + 1080p erzwingen..."
 sudo sed -i '/hdmi_force_hotplug/d' /boot/config.txt
 sudo sed -i '/hdmi_group/d' /boot/config.txt
 sudo sed -i '/hdmi_mode/d' /boot/config.txt
@@ -77,35 +61,27 @@ hdmi_force_hotplug=1
 hdmi_group=1
 hdmi_mode=16
 EOF
-log "HDMI-Settings gesetzt (1080p, Force Hotplug)."
+log "HDMI konfiguriert."
 
-echo "→ GPU-Speicher erhöhen..."
 sudo sed -i '/gpu_mem/d' /boot/config.txt
 echo "gpu_mem=256" | sudo tee -a /boot/config.txt >/dev/null
-log "GPU-Speicher auf 256 MB gesetzt."
+log "GPU-Speicher gesetzt."
 
-echo "→ KMS aktivieren (Hardware-Beschleunigung)..."
 sudo sed -i '/dtoverlay=vc4-kms-v3d/d' /boot/config.txt
 echo "dtoverlay=vc4-kms-v3d" | sudo tee -a /boot/config.txt >/dev/null
-log "KMS (vc4-kms-v3d) aktiviert."
+log "KMS aktiviert."
 
-echo "→ fbdev-Konfiguration entfernen (falls vorhanden)..."
 sudo rm -f /etc/X11/xorg.conf.d/99-pi.conf
-log "fbdev-Konfiguration entfernt."
+log "fbdev entfernt."
 
-echo "→ Energiesparfunktionen für X deaktivieren..."
 sudo mkdir -p /etc/xdg/openbox
-sudo sed -i '/xset s off/d' /etc/xdg/openbox/autostart 2>/dev/null || true
-sudo sed -i '/xset -dpms/d' /etc/xdg/openbox/autostart 2>/dev/null || true
-sudo sed -i '/xset s noblank/d' /etc/xdg/openbox/autostart 2>/dev/null || true
-sudo tee -a /etc/xdg/openbox/autostart >/dev/null <<EOF
+sudo tee /etc/xdg/openbox/autostart >/dev/null <<EOF
 @xset s off
 @xset -dpms
 @xset s noblank
 EOF
-log "X-Energiesparfunktionen deaktiviert."
+log "Energiesparfunktionen deaktiviert."
 
-echo "→ WLAN Power Saving deaktivieren..."
 sudo bash -c 'cat > /etc/network/if-up.d/wlan-reconnect <<EOF
 #!/bin/bash
 iwconfig wlan0 power off || true
@@ -117,16 +93,12 @@ log "WLAN Power Saving deaktiviert."
 # GPU-optimierter Chromium-Start
 # ==========================
 
-echo "→ GPU-optimierte Chromium-Startdatei erstellen..."
 cat > "$USER_HOME/start-chromium.sh" <<EOF
 #!/bin/bash
 source "$CONFIG_FILE"
 
-LOG_DIR="$LOG_DIR"
 LOG_FILE="$LOG_FILE"
-log() {
-    echo "\$(date '+%Y-%m-%d %H:%M:%S')  \$1" >> "\$LOG_FILE"
-}
+log() { echo "\$(date '+%Y-%m-%d %H:%M:%S')  \$1" >> "\$LOG_FILE"; }
 
 export DISPLAY=:0
 
@@ -141,103 +113,76 @@ chromium \\
   --use-gl=egl \\
   --enable-features=VaapiVideoDecoder \\
   --ignore-gpu-blocklist \\
-  --disable-features=UseChromeOSDirectVideoDecoder \\
-  --disable-gpu-driver-bug-workarounds \\
-  --disable-low-res-tiling \\
-  --disable-accelerated-video-decode=false \\
   --enable-zero-copy \\
+  --disable-dev-shm-usage \\
   --disk-cache-size=104857600 \\
   --force-dark-mode \\
   --no-first-run \\
-  --no-default-browser-check \\
-  --disable-dev-shm-usage \\
-  --password-store=basic \\
-  --overscroll-history-navigation=0 \\
-  --disable-pinch \\
-  --disable-features=TranslateUI &
-
-PID=\$!
-log "Chromium-Prozess gestartet (PID: \$PID)"
+  --no-default-browser-check &
 EOF
+
 chmod +x "$USER_HOME/start-chromium.sh"
 log "start-chromium.sh erstellt."
 
 # ==========================
-# X-Start (.xinitrc)
+# X-Start
 # ==========================
 
-echo "→ .xinitrc erstellen..."
 cat > "$USER_HOME/.xinitrc" <<EOF
 #!/bin/bash
 export DISPLAY=:0
-
 openbox-session &
 unclutter &
-
 $USER_HOME/start-chromium.sh
 EOF
+
 chmod +x "$USER_HOME/.xinitrc"
 log ".xinitrc erstellt."
 
 # ==========================
-# Autostart über .bash_profile
+# Autostart
 # ==========================
 
-echo "→ Autostart über ~/.bash_profile einrichten..."
-if ! grep -q "KIOSK_AUTOSTART" "$USER_HOME/.bash_profile" 2>/dev/null; then
+if ! grep -q "KIOSK_AUTOSTART" "$USER_HOME/.bash_profile"; then
   cat >> "$USER_HOME/.bash_profile" <<'EOF'
 
 # KIOSK_AUTOSTART
 if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
-  echo "Warte 30 Sekunden für Netzwerk + GPU-Init..."
   sleep 30
-
-  echo "Prüfe Internetverbindung..."
-  while ! ping -c 1 8.8.8.8 >/dev/null 2>&1; do
-      echo "Noch kein Internet – warte..."
-      sleep 3
-  done
-
-  echo "Internet verfügbar – starte X..."
+  while ! ping -c 1 8.8.8.8 >/dev/null 2>&1; do sleep 3; done
   startx
 fi
 EOF
-  log "Autostart in .bash_profile eingetragen."
-else
-  log "Autostart in .bash_profile war bereits vorhanden."
 fi
 
+log "Autostart eingerichtet."
+
 # ==========================
-# Sanfter Browser-Watchdog mit Logging
+# Browser-Watchdog
 # ==========================
 
-echo "→ Sanften Browser-Watchdog erstellen..."
 cat > "$USER_HOME/kiosk-watchdog.sh" <<EOF
 #!/bin/bash
 source "$CONFIG_FILE"
 
-LOG_DIR="$LOG_DIR"
 LOG_FILE="$LOG_FILE"
-log() {
-    echo "\$(date '+%Y-%m-%d %H:%M:%S')  \$1" >> "\$LOG_FILE"
-}
+log() { echo "\$(date '+%Y-%m-%d %H:%M:%S')  \$1" >> "\$LOG_FILE"; }
 
 export DISPLAY=:0
 
-log "Watchdog gestartet."
+log "Browser-Watchdog gestartet."
 
 while true; do
     if ! pgrep -x "chromium" >/dev/null; then
-        log "Chromium nicht gefunden – Neustart durch Watchdog."
+        log "Chromium abgestürzt – Neustart."
         $USER_HOME/start-chromium.sh
     fi
     sleep 5
 done
 EOF
-chmod +x "$USER_HOME/kiosk-watchdog.sh"
-log "kiosk-watchdog.sh erstellt."
 
-echo "→ Watchdog in Autostart eintragen..."
+chmod +x "$USER_HOME/kiosk-watchdog.sh"
+
 mkdir -p "$USER_HOME/.config/autostart"
 cat > "$USER_HOME/.config/autostart/watchdog.desktop" <<EOF
 [Desktop Entry]
@@ -245,27 +190,21 @@ Type=Application
 Name=Kiosk Watchdog
 Exec=$USER_HOME/kiosk-watchdog.sh
 EOF
-log "Watchdog-Autostart erstellt."
+
+log "Browser-Watchdog aktiviert."
 
 # ==========================
-# Netzwerk-Watchdog mit Logging
+# Netzwerk-Watchdog
 # ==========================
 
-echo "→ Netzwerk-Watchdog erstellen..."
 cat > "$USER_HOME/network-watchdog.sh" <<EOF
 #!/bin/bash
 source "$CONFIG_FILE"
 
-LOG_DIR="$LOG_DIR"
 LOG_FILE="$LOG_FILE"
-log() {
-    echo "\$(date '+%Y-%m-%d %H:%M:%S')  \$1" >> "\$LOG_FILE"
-}
+log() { echo "\$(date '+%Y-%m-%d %H:%M:%S')  \$1" >> "\$LOG_FILE"; }
 
 export DISPLAY=:0
-
-WEBSITE_URL="\$WEBSITE_URL"
-FALLBACK_URL="\$FALLBACK_URL"
 
 LAST_STATE="unknown"
 
@@ -274,13 +213,13 @@ log "Netzwerk-Watchdog gestartet."
 while true; do
     if ping -c 1 8.8.8.8 >/dev/null 2>&1; then
         if [ "\$LAST_STATE" != "online" ]; then
-            log "Netzwerk ONLINE – lade Hauptseite."
+            log "ONLINE – lade Hauptseite."
             xdotool search --onlyvisible --class chromium windowactivate --sync key --clearmodifiers "ctrl+l" type "\$WEBSITE_URL" key Return
             LAST_STATE="online"
         fi
     else
         if [ "\$LAST_STATE" != "offline" ]; then
-            log "Netzwerk OFFLINE – lade Fallback."
+            log "OFFLINE – lade Fallback."
             xdotool search --onlyvisible --class chromium windowactivate --sync key --clearmodifiers "ctrl+l" type "\$FALLBACK_URL" key Return
             LAST_STATE="offline"
         fi
@@ -288,66 +227,69 @@ while true; do
     sleep 10
 done
 EOF
-chmod +x "$USER_HOME/network-watchdog.sh"
-log "network-watchdog.sh erstellt."
 
-echo "→ Netzwerk-Watchdog in Autostart eintragen..."
+chmod +x "$USER_HOME/network-watchdog.sh"
+
 cat > "$USER_HOME/.config/autostart/network-watchdog.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Network Watchdog
 Exec=$USER_HOME/network-watchdog.sh
 EOF
-log "Network-Watchdog-Autostart erstellt."
+
+log "Netzwerk-Watchdog aktiviert."
 
 # ==========================
 # Offline-Fallback
 # ==========================
 
-echo "→ Offline-Fallback erstellen..."
 mkdir -p "$USER_HOME/offline"
 cat > "$USER_HOME/offline/index.html" <<EOF
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Offline – Verbindung wird wiederhergestellt…</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <style>
-    body {
-      margin: 0;
-      background: #000;
-      color: #fff;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      text-align: center;
-    }
-    .msg {
-      font-size: 2.4rem;
-      max-width: 80vw;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Offline</title>
+<style>
+body { background:black; color:white; font-size:40px; text-align:center; padding-top:20%; }
+</style>
 </head>
-<body>
-  <div class="msg">
-    Offline – Verbindung wird wiederhergestellt…
-  </div>
-</body>
+<body>Offline – Verbindung wird wiederhergestellt…</body>
 </html>
 EOF
-log "Offline-Fallback-Seite erstellt."
+
+log "Offline-Fallback erstellt."
 
 # ==========================
-# Täglicher Reboot
+# Logrotate
 # ==========================
 
-echo "→ Täglichen Reboot um 04:00 Uhr einrichten..."
+sudo bash -c 'cat > /etc/logrotate.d/kiosk <<EOF
+/home/pi/kiosk-logs/kiosk.log {
+    daily
+    rotate 7
+    compress
+    missingok
+    notifempty
+    create 644 pi pi
+    dateext
+    dateformat -%Y%m%d
+    sharedscripts
+    postrotate
+        true
+    endscript
+}
+EOF'
+
+log "logrotate eingerichtet."
+
+# ==========================
+# Reboot-Cronjob
+# ==========================
+
 sudo bash -c '(crontab -l 2>/dev/null; echo "0 4 * * * /sbin/reboot") | crontab -'
-log "Cronjob für täglichen Reboot eingerichtet."
+log "Täglicher Reboot eingerichtet."
+
+log "Setup abgeschlossen. Neustart empfohlen."
 
 echo "=== Installation abgeschlossen ==="
-echo "Bitte Raspberry Pi neu starten."
-log "Setup abgeschlossen. Neustart empfohlen."
