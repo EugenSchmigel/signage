@@ -1,6 +1,6 @@
 \#!/bin/bash
 
-echo "=== Raspberry Pi Grafik-Reset ==="
+echo "=== Raspberry Pi Grafik-Reset. ==="
 
 # 1\. config.txt zurücksetzen
 
