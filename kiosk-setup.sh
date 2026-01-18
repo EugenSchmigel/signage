@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "=== Raspberry Pi Digital Signage – Vollsetup (stabil) ==="
+echo "=== Raspberry Pi Digital Signage – Systemd Kiosk Setup ==="
 
 USER="pi"
 USER_HOME="/home/$USER"
@@ -82,37 +82,59 @@ EOF
 chmod +x "$USER_HOME/start-chromium.sh"
 
 # ==========================
-# Xinitrc
+# X11 Startscript für systemd
 # ==========================
 
-cat > "$USER_HOME/.xinitrc" <<EOF
+cat > "$USER_HOME/start-x.sh" <<EOF
 #!/bin/bash
-openbox-session &
-unclutter &
-$USER_HOME/start-chromium.sh
+export DISPLAY=:0
+startx /usr/bin/openbox-session
 EOF
 
-chmod +x "$USER_HOME/.xinitrc"
+chmod +x "$USER_HOME/start-x.sh"
 
 # ==========================
-# Autologin ohne Desktop
+# systemd: X11 Service
 # ==========================
 
-sudo mkdir -p /etc/systemd/system/getty@tty1.service.d
-sudo tee /etc/systemd/system/getty@tty1.service.d/override.conf >/dev/null <<EOF
+sudo tee /etc/systemd/system/x11.service >/dev/null <<EOF
+[Unit]
+Description=Start X11 Server
+After=systemd-user-sessions.service
+
 [Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin pi --noclear %I \$TERM
+User=$USER
+Environment=DISPLAY=:0
+ExecStart=$USER_HOME/start-x.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
-sudo systemctl daemon-reexec
-sudo systemctl restart getty@tty1.service
+sudo systemctl enable x11.service
 
 # ==========================
-# Automatischer Start von X11
+# systemd: Chromium Service
 # ==========================
 
-echo '[[ -z $DISPLAY && $XDG_VTNR -eq 1 ]] && startx' >> "$USER_HOME/.bash_profile"
+sudo tee /etc/systemd/system/kiosk.service >/dev/null <<EOF
+[Unit]
+Description=Chromium Kiosk
+After=x11.service network-online.target
+Wants=network-online.target
+
+[Service]
+User=$USER
+Environment=DISPLAY=:0
+ExecStart=$USER_HOME/start-chromium.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl enable kiosk.service
 
 # ==========================
 # Offline-Fallback
