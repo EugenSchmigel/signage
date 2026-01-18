@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "=== Raspberry Pi 5 Digital Signage Setup – Optimiert ==="
+echo "=== Raspberry Pi 5 Digital Signage Setup – Optimiert (fix) ==="
 
 USER="pi"
 USER_HOME="/home/$USER"
@@ -25,6 +25,7 @@ FALLBACK_URL=file://$USER_HOME/offline/index.html
 EOF
   log "Config-Datei erstellt."
 fi
+# shellcheck disable=SC1090
 source "$CONFIG_FILE"
 
 # ==========================
@@ -70,6 +71,7 @@ sudo tee /etc/xdg/openbox/autostart >/dev/null <<EOF
 @xset -dpms
 @xset s noblank
 EOF
+log "Energiesparfunktionen deaktiviert."
 
 # ==========================
 # WLAN Power Saving
@@ -79,6 +81,7 @@ sudo tee /etc/network/if-up.d/wlan-reconnect >/dev/null <<EOF
 iwconfig wlan0 power off || true
 EOF
 sudo chmod +x /etc/network/if-up.d/wlan-reconnect
+log "WLAN Power Saving deaktiviert."
 
 # ==========================
 # Chromium Startscript
@@ -87,46 +90,68 @@ cat > "$USER_HOME/start-chromium.sh" <<EOF
 #!/bin/bash
 source "$CONFIG_FILE"
 export DISPLAY=:0
+
 chromium --kiosk "\$WEBSITE_URL" \
-  --noerrdialogs --disable-infobars --disable-session-crashed-bubble \
+  --noerrdialogs \
+  --disable-infobars \
+  --disable-session-crashed-bubble \
   --autoplay-policy=no-user-gesture-required \
-  --use-gl=egl --enable-features=VaapiVideoDecoder \
-  --ignore-gpu-blocklist --enable-zero-copy \
-  --disable-dev-shm-usage --disk-cache-size=104857600 \
-  --force-dark-mode --no-first-run --no-default-browser-check
+  --use-gl=egl \
+  --enable-features=VaapiVideoDecoder \
+  --ignore-gpu-blocklist \
+  --enable-zero-copy \
+  --disable-dev-shm-usage \
+  --disk-cache-size=104857600 \
+  --force-dark-mode \
+  --no-first-run \
+  --no-default-browser-check
 EOF
 chmod +x "$USER_HOME/start-chromium.sh"
+log "start-chromium.sh erstellt."
 
 # ==========================
 # Xinitrc
 # ==========================
 cat > "$USER_HOME/.xinitrc" <<EOF
 #!/bin/bash
+export DISPLAY=:0
 openbox-session &
 unclutter &
 $USER_HOME/start-chromium.sh
 EOF
 chmod +x "$USER_HOME/.xinitrc"
+log ".xinitrc erstellt."
 
 # ==========================
-# systemd Service statt Bash-Profile
+# systemd Service: Xorg + Openbox + Chromium
 # ==========================
+# Wichtig: Auf Raspberry Pi OS Lite gibt es kein graphical.target,
+# daher nutzen wir multi-user.target und starten X selbst via xinit.
+
 sudo tee /etc/systemd/system/kiosk.service >/dev/null <<EOF
 [Unit]
-Description=Chromium Kiosk
-After=graphical.target network-online.target
+Description=Kiosk Xorg + Openbox + Chromium
+After=network-online.target
 Wants=network-online.target
 
 [Service]
 User=$USER
+WorkingDirectory=$USER_HOME
 Environment=DISPLAY=:0
-ExecStart=$USER_HOME/start-chromium.sh
+TTYPath=/dev/tty1
+PAMName=login
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+ExecStart=/usr/bin/xinit $USER_HOME/.xinitrc -- :0 -nolisten tcp vt1
 Restart=always
+RestartSec=5
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target
 EOF
 
+sudo systemctl daemon-reload
 sudo systemctl enable kiosk.service
 log "systemd Kiosk-Service aktiviert."
 
@@ -140,6 +165,7 @@ cat > "$USER_HOME/offline/index.html" <<EOF
 <style>body{background:black;color:white;font-size:40px;text-align:center;padding-top:20%;}</style>
 </head><body>Offline – Verbindung wird wiederhergestellt…</body></html>
 EOF
+log "Offline-Fallback erstellt."
 
 # ==========================
 # Logrotate
@@ -154,11 +180,13 @@ $LOG_FILE {
     create 644 $USER $USER
 }
 EOF
+log "logrotate konfiguriert."
 
 # ==========================
 # Reboot-Cronjob
 # ==========================
 (sudo crontab -l 2>/dev/null; echo "0 4 * * * /sbin/reboot") | sudo crontab -
+log "Täglicher Reboot eingerichtet."
 
 log "Setup abgeschlossen. Bitte neu starten."
 echo "=== Installation abgeschlossen ==="
