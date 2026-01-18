@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "=== Raspberry Pi Digital Signage – Systemd Kiosk Setup ==="
+echo "=== Raspberry Pi Digital Signage – Systemd Kiosk Setup (Repariert) ==="
 
 USER="pi"
 USER_HOME="/home/$USER"
@@ -28,7 +28,7 @@ EOF
 
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox
-sudo apt install -y chromium-browser unclutter xdotool curl jq
+sudo apt install -y chromium chromium-browser unclutter xdotool curl jq
 log "Pakete installiert."
 
 # ==========================
@@ -72,7 +72,7 @@ cat > "$USER_HOME/start-chromium.sh" <<EOF
 source "$CONFIG_FILE"
 export DISPLAY=:0
 
-chromium-browser --kiosk "\$WEBSITE_URL" \
+chromium --kiosk "\$WEBSITE_URL" \
   --noerrdialogs --disable-infobars --disable-session-crashed-bubble \
   --autoplay-policy=no-user-gesture-required \
   --disable-dev-shm-usage --no-first-run --no-default-browser-check \
@@ -82,7 +82,7 @@ EOF
 chmod +x "$USER_HOME/start-chromium.sh"
 
 # ==========================
-# X11 Startscript für systemd
+# X11 Startscript
 # ==========================
 
 cat > "$USER_HOME/start-x.sh" <<EOF
@@ -103,15 +103,16 @@ Description=Start X11 Server
 After=systemd-user-sessions.service
 
 [Service]
-User=$USER
+User=pi
 Environment=DISPLAY=:0
-ExecStart=$USER_HOME/start-x.sh
+ExecStart=/home/pi/start-x.sh
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
+sudo systemctl daemon-reload
 sudo systemctl enable x11.service
 
 # ==========================
@@ -125,15 +126,16 @@ After=x11.service network-online.target
 Wants=network-online.target
 
 [Service]
-User=$USER
+User=pi
 Environment=DISPLAY=:0
-ExecStart=$USER_HOME/start-chromium.sh
+ExecStart=/home/pi/start-chromium.sh
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
+sudo systemctl daemon-reload
 sudo systemctl enable kiosk.service
 
 # ==========================
