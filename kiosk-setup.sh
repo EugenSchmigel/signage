@@ -4,6 +4,7 @@ echo "=== Raspberry Pi 5 – Wayland Chromium Kiosk Setup ==="
 
 USER="pi"
 USER_HOME="/home/$USER"
+WEB_SITE= "https://test.test.tech"
 
 # ==========================
 # Pakete installieren
@@ -35,7 +36,7 @@ cat > "$USER_HOME/kiosk.sh" <<EOF
 # Warte kurz, bis Wayland vollständig läuft
 sleep 3
 
-chromium-browser --kiosk "https://test.test.tech" \
+chromium-browser --kiosk $WEB_SITE \
   --noerrdialogs --disable-infobars --disable-session-crashed-bubble \
   --autoplay-policy=no-user-gesture-required \
   --disable-dev-shm-usage --no-first-run --no-default-browser-check \
@@ -69,7 +70,7 @@ After=graphical-session.target
 
 [Service]
 ExecStart=/usr/bin/chromium-browser \
-  --kiosk https://lvm.arsolex.tech \
+  --kiosk $WEB_SITE \
   --noerrdialogs --disable-infobars --disable-session-crashed-bubble \
   --autoplay-policy=no-user-gesture-required \
   --disable-dev-shm-usage --no-first-run --no-default-browser-check \
