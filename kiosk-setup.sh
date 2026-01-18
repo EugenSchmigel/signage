@@ -1,6 +1,6 @@
-\#!/bin/bash
+#!/bin/bash
 
-echo "=== Raspberry Pi Digital Signage – Vollsetup ==="
+echo "=== Raspberry Pi Digital Signage – Vollsetup (stabil) ==="
 
 USER="pi"
 USER_HOME="/home/$USER"
@@ -14,31 +14,25 @@ touch "$LOG_FILE"
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S')  $1" | tee -a "$LOG_FILE"; }
 
 # ==========================
-
 # Config-Datei
-
 # ==========================
 
 cat > "$CONFIG_FILE" <<EOF
-WEBSITE_URL=<https://test.test.tech>
+WEBSITE_URL=https://test.test.tech
 FALLBACK_URL=file://$USER_HOME/offline/index.html
 EOF
 
 # ==========================
-
 # System & Pakete
-
 # ==========================
 
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox
-sudo apt install -y chromium unclutter xdotool curl jq
+sudo apt install -y chromium-browser unclutter xdotool curl jq
 log "Pakete installiert."
 
 # ==========================
-
 # HDMI Fixes
-
 # ==========================
 
 sudo sed -i '/dtoverlay=/d;/gpu_mem=/d;/hdmi_force_hotplug=/d/' /boot/config.txt
@@ -49,21 +43,17 @@ hdmi_force_hotplug=1
 EOF
 
 # ==========================
-
 # WLAN Stabilisierung
-
 # ==========================
 
 sudo tee /etc/network/if-up.d/wlan-stabilize >/dev/null <<EOF
-\#!/bin/bash
+#!/bin/bash
 iwconfig wlan0 power off || true
 EOF
 sudo chmod +x /etc/network/if-up.d/wlan-stabilize
 
 # ==========================
-
-# Mauszeiger ausblenden
-
+# Openbox Autostart
 # ==========================
 
 sudo tee /etc/xdg/openbox/autostart >/dev/null <<EOF
@@ -74,131 +64,58 @@ sudo tee /etc/xdg/openbox/autostart >/dev/null <<EOF
 EOF
 
 # ==========================
-
 # Chromium Startscript
-
 # ==========================
 
 cat > "$USER_HOME/start-chromium.sh" <<EOF
-\#!/bin/bash
+#!/bin/bash
 source "$CONFIG_FILE"
 export DISPLAY=:0
-chromium --kiosk "$WEBSITE_URL" \
-\--noerrdialogs --disable-infobars --disable-session-crashed-bubble \
-\--autoplay-policy=no-user-gesture-required \
-\--use-gl=egl --enable-features=VaapiVideoDecoder \
-\--ignore-gpu-blocklist --enable-zero-copy \
-\--disable-dev-shm-usage --disk-cache-size=104857600 \
-\--force-dark-mode --no-first-run --no-default-browser-check
+
+chromium-browser --kiosk "\$WEBSITE_URL" \
+  --noerrdialogs --disable-infobars --disable-session-crashed-bubble \
+  --autoplay-policy=no-user-gesture-required \
+  --disable-dev-shm-usage --no-first-run --no-default-browser-check \
+  --force-dark-mode
 EOF
+
 chmod +x "$USER_HOME/start-chromium.sh"
 
 # ==========================
-
 # Xinitrc
-
 # ==========================
 
 cat > "$USER_HOME/.xinitrc" <<EOF
-\#!/bin/bash
+#!/bin/bash
 openbox-session &
 unclutter &
 $USER_HOME/start-chromium.sh
 EOF
+
 chmod +x "$USER_HOME/.xinitrc"
 
 # ==========================
-
 # Autologin ohne Desktop
-
 # ==========================
 
 sudo mkdir -p /etc/systemd/system/getty@tty1.service.d
 sudo tee /etc/systemd/system/getty@tty1.service.d/override.conf >/dev/null <<EOF
 [Service]
 ExecStart=
-ExecStart=-/sbin/agetty --autologin pi --noclear %I $TERM
+ExecStart=-/sbin/agetty --autologin pi --noclear %I \$TERM
 EOF
+
 sudo systemctl daemon-reexec
 sudo systemctl restart getty@tty1.service
-sudo systemctl set-default graphical.target
 
 # ==========================
-
-# systemd Kiosk-Service
-
+# Automatischer Start von X11
 # ==========================
 
-sudo tee /etc/systemd/system/kiosk.service >/dev/null <<EOF
-[Unit]
-Description=Chromium Kiosk
-After=graphical.target network-online.target
-Wants=network-online.target
-
-[Service]
-User=$USER
-Environment=DISPLAY=:0
-ExecStart=$USER_HOME/start-chromium.sh
-Restart=always
-
-[Install]
-WantedBy=graphical.target
-EOF
-sudo systemctl enable kiosk.service
+echo '[[ -z $DISPLAY && $XDG_VTNR -eq 1 ]] && startx' >> "$USER_HOME/.bash_profile"
 
 # ==========================
-
-# Browser-Watchdog
-
-# ==========================
-
-sudo tee /etc/systemd/system/browser-watchdog.service >/dev/null <<EOF
-[Unit]
-Description=Browser Watchdog
-After=network-online.target
-
-[Service]
-User=$USER
-ExecStart=/bin/bash -c 'while true; do pgrep chromium || startx; sleep 30; done'
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-sudo systemctl enable browser-watchdog.service
-
-# ==========================
-
-# Netzwerk-Watchdog
-
-# ==========================
-
-sudo tee /etc/systemd/system/network-watchdog.service >/dev/null <<EOF
-[Unit]
-Description=Network Watchdog
-
-[Service]
-User=$USER
-ExecStart=/bin/bash -c '
-while true; do
-if ping -c1 8.8.8.8 >/dev/null 2>&1; then
-echo "Online" > $LOG_FILE
-else
-chromium --kiosk "$FALLBACK_URL"
-fi
-sleep 60
-done'
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-sudo systemctl enable network-watchdog.service
-
-# ==========================
-
 # Offline-Fallback
-
 # ==========================
 
 mkdir -p "$USER_HOME/offline"
@@ -210,9 +127,7 @@ cat > "$USER_HOME/offline/index.html" <<EOF
 EOF
 
 # ==========================
-
 # Logrotate
-
 # ==========================
 
 sudo tee /etc/logrotate.d/kiosk >/dev/null <<EOF
@@ -227,11 +142,9 @@ create 644 $USER $USER
 EOF
 
 # ==========================
-
 # Täglicher Reboot
-
 # ==========================
 
-(sudo crontab -l 2>/dev/null; echo "0 4  * /sbin/reboot") | sudo crontab -
+(sudo crontab -l 2>/dev/null; echo "0 4 * * * /sbin/reboot") | sudo crontab -
 
 log "Setup abgeschlossen. Bitte neu starten."
