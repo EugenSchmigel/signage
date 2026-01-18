@@ -1,6 +1,6 @@
 \#!/bin/bash
 
-echo "=== Raspberry Pi Digital Signage – Professional Setup ==="
+echo "=== Raspberry Pi Digital Signage – Vollsetup ==="
 
 USER="pi"
 USER_HOME="/home/$USER"
@@ -50,6 +50,18 @@ EOF
 
 # ==========================
 
+# WLAN Stabilisierung
+
+# ==========================
+
+sudo tee /etc/network/if-up.d/wlan-stabilize >/dev/null <<EOF
+\#!/bin/bash
+iwconfig wlan0 power off || true
+EOF
+sudo chmod +x /etc/network/if-up.d/wlan-stabilize
+
+# ==========================
+
 # Mauszeiger ausblenden
 
 # ==========================
@@ -60,18 +72,6 @@ sudo tee /etc/xdg/openbox/autostart >/dev/null <<EOF
 @xset s noblank
 @unclutter -idle 0
 EOF
-
-# ==========================
-
-# WLAN Stabilisierung
-
-# ==========================
-
-sudo tee /etc/network/if-up.d/wlan-stabilize >/dev/null <<EOF
-\#!/bin/bash
-iwconfig wlan0 power off || true
-EOF
-sudo chmod +x /etc/network/if-up.d/wlan-stabilize
 
 # ==========================
 
@@ -119,6 +119,9 @@ sudo tee /etc/systemd/system/getty@tty1.service.d/override.conf >/dev/null <<EOF
 ExecStart=
 ExecStart=-/sbin/agetty --autologin pi --noclear %I $TERM
 EOF
+sudo systemctl daemon-reexec
+sudo systemctl restart getty@tty1.service
+sudo systemctl set-default graphical.target
 
 # ==========================
 
