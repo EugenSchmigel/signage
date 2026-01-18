@@ -1,181 +1,136 @@
 #!/bin/bash
 
-echo "=== Raspberry Pi 5 Digital Signage Setup – Optimiert ==="
+echo "=== Raspberry Pi 5 Digital Signage Setup (Minimal Desktop) ==="
 
-USER="pi"
-USER_HOME="/home/$USER"
-CONFIG_FILE="$USER_HOME/kiosk.conf"
-LOG_DIR="$USER_HOME/kiosk-logs"
-LOG_FILE="$LOG_DIR/kiosk.log"
+WEBSITE_URL="https://DEINE-WEBSITE.de"
+FALLBACK_URL="file:///home/pi/offline/index.html"
 
-mkdir -p "$LOG_DIR"
-touch "$LOG_FILE"
-
-log() { echo "$(date '+%Y-%m-%d %H:%M:%S')  $1" | tee -a "$LOG_FILE"; }
-
-log "Setup gestartet."
-
-# ==========================
-# Config-Datei
-# ==========================
-if [ ! -f "$CONFIG_FILE" ]; then
-  cat > "$CONFIG_FILE" <<EOF
-WEBSITE_URL=https://test.test.tech
-FALLBACK_URL=file://$USER_HOME/offline/index.html
-EOF
-  log "Config-Datei erstellt."
-fi
-source "$CONFIG_FILE"
-
-# ==========================
-# System & Pakete
-# ==========================
+echo "→ System aktualisieren..."
 sudo apt update && sudo apt upgrade -y
-sudo apt install --no-install-recommends -y xserver-xorg x11-xserver-utils xinit openbox
-sudo apt install -y chromium unclutter xdotool curl
-log "Pakete installiert."
 
-# ==========================
-# GPU / HDMI / Performance
-# ==========================
-sudo sed -i '/hdmi_force_hotplug/d;/hdmi_group/d;/hdmi_mode/d;/gpu_mem/d;/dtoverlay=vc4-kms-v3d/d' /boot/config.txt
-sudo tee -a /boot/config.txt >/dev/null <<EOF
-hdmi_force_hotplug=1
-hdmi_group=1
-hdmi_mode=16
-gpu_mem=256
-dtoverlay=vc4-kms-v3d
-EOF
-log "HDMI + GPU konfiguriert."
+echo "→ Minimalen X-Server installieren..."
+sudo apt install --no-install-recommends -y xserver-xorg x11-xserver-utils xinit
 
-# ==========================
-# Xorg Treiber (modesetting)
-# ==========================
-sudo rm -f /etc/X11/xorg.conf.d/99-pi.conf
-sudo mkdir -p /etc/X11/xorg.conf.d
-sudo tee /etc/X11/xorg.conf.d/10-modesetting.conf >/dev/null <<EOF
-Section "Device"
-    Identifier "Builtin Graphics"
-    Driver "modesetting"
-EndSection
-EOF
-log "Xorg auf modesetting gesetzt."
+echo "→ Openbox installieren (leichtester Window Manager)..."
+sudo apt install --no-install-recommends -y openbox
 
-# ==========================
-# Energiesparfunktionen
-# ==========================
-sudo mkdir -p /etc/xdg/openbox
-sudo tee /etc/xdg/openbox/autostart >/dev/null <<EOF
-@xset s off
-@xset -dpms
-@xset s noblank
-EOF
+echo "→ Chromium installieren..."
+sudo apt install -y chromium
 
-# ==========================
-# WLAN Power Saving
-# ==========================
-sudo tee /etc/network/if-up.d/wlan-reconnect >/dev/null <<EOF
+echo "→ unclutter installieren (Mauszeiger ausblenden)..."
+sudo apt install -y unclutter
+
+echo "→ xdotool installieren (für Netzwerk-Watchdog)..."
+sudo apt install -y xdotool
+
+echo "→ Autologin auf Konsole aktivieren..."
+sudo raspi-config nonint do_boot_behaviour B2
+
+echo "→ HDMI dauerhaft aktiv halten..."
+sudo sed -i '$a hdmi_force_hotplug=1' /boot/config.txt
+sudo sed -i '$a hdmi_group=1' /boot/config.txt
+sudo sed -i '$a hdmi_mode=16' /boot/config.txt
+
+echo "→ Energiesparfunktionen deaktivieren..."
+sudo sed -i '$a @xset s off' /etc/xdg/openbox/autostart
+sudo sed -i '$a @xset -dpms' /etc/xdg/openbox/autostart
+sudo sed -i '$a @xset s noblank' /etc/xdg/openbox/autostart
+
+echo "→ WLAN Power Saving deaktivieren..."
+sudo bash -c 'cat > /etc/network/if-up.d/wlan-reconnect <<EOF
 #!/bin/bash
-iwconfig wlan0 power off || true
-EOF
+iwconfig wlan0 power off
+EOF'
 sudo chmod +x /etc/network/if-up.d/wlan-reconnect
 
-# ==========================
-# Chromium Startscript
-# ==========================
-cat > "$USER_HOME/start-chromium.sh" <<EOF
-#!/bin/bash
-source "$CONFIG_FILE"
-export DISPLAY=:0
-
-chromium --kiosk "\$WEBSITE_URL" \
-  --noerrdialogs \
-  --disable-infobars \
-  --disable-session-crashed-bubble \
-  --autoplay-policy=no-user-gesture-required \
-  --use-gl=egl \
-  --enable-features=VaapiVideoDecoder \
-  --ignore-gpu-blocklist \
-  --enable-zero-copy \
-  --disable-dev-shm-usage \
-  --disk-cache-size=104857600 \
-  --force-dark-mode \
-  --no-first-run \
-  --no-default-browser-check
-EOF
-chmod +x "$USER_HOME/start-chromium.sh"
-
-# ==========================
-# Xinitrc
-# ==========================
-cat > "$USER_HOME/.xinitrc" <<EOF
-#!/bin/bash
-export DISPLAY=:0
-openbox-session &
+echo "→ Openbox Autostart konfigurieren..."
+mkdir -p ~/.config/openbox
+cat > ~/.config/openbox/autostart <<EOF
 unclutter &
-$USER_HOME/start-chromium.sh
-EOF
-chmod +x "$USER_HOME/.xinitrc"
-
-# ==========================
-# systemd Service: Xorg + Openbox + Chromium
-# ==========================
-sudo tee /etc/systemd/system/kiosk.service >/dev/null <<EOF
-[Unit]
-Description=Kiosk Xorg + Openbox + Chromium
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=$USER
-WorkingDirectory=$USER_HOME
-Environment=DISPLAY=:0
-TTYPath=/dev/tty1
-StandardInput=tty
-StandardOutput=journal
-StandardError=journal
-ExecStartPre=/bin/sleep 5
-ExecStart=/usr/bin/xinit $USER_HOME/.xinitrc -- :0 -nolisten tcp vt1
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
+chromium --kiosk $WEBSITE_URL --noerrdialogs --disable-infobars --disable-session-crashed-bubble &
 EOF
 
-sudo systemctl daemon-reload
-sudo systemctl enable kiosk.service
-log "systemd Kiosk-Service aktiviert."
+echo "→ Kiosk-Start über ~/.bash_profile einrichten..."
+cat >> ~/.bash_profile <<EOF
 
-# ==========================
-# Offline-Fallback
-# ==========================
-mkdir -p "$USER_HOME/offline"
-cat > "$USER_HOME/offline/index.html" <<EOF
-<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Offline</title>
-<style>body{background:black;color:white;font-size:40px;text-align:center;padding-top:20%;}</style>
-</head><body>Offline – Verbindung wird wiederhergestellt…</body></html>
+# Auto-start X + Openbox + Chromium mit Delay + Internet-Check
+if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ]; then
+
+  echo "Warte 20 Sekunden, damit Netzwerk + große Videos laden können..."
+  sleep 20
+
+  echo "Prüfe Internetverbindung..."
+  while ! ping -c 1 8.8.8.8 >/dev/null 2>&1; do
+      echo "Noch kein Internet – warte..."
+      sleep 2
+  done
+
+  echo "Internet verfügbar – starte X + Openbox."
+  startx
+fi
 EOF
 
-# ==========================
-# Logrotate
-# ==========================
-sudo tee /etc/logrotate.d/kiosk >/dev/null <<EOF
-$LOG_FILE {
-    daily
-    rotate 7
-    compress
-    missingok
-    notifempty
-    create 644 $USER $USER
-}
+echo "→ Browser-Watchdog erstellen..."
+cat > ~/kiosk-watchdog.sh <<EOF
+#!/bin/bash
+while true; do
+    if ! pgrep -x "chromium" > /dev/null; then
+        chromium --kiosk $WEBSITE_URL --noerrdialogs --disable-infobars &
+    fi
+    sleep 10
+done
 EOF
 
-# ==========================
-# Reboot-Cronjob
-# ==========================
-(sudo crontab -l 2>/dev/null; echo "0 4 * * * /sbin/reboot") | sudo crontab -
+chmod +x ~/kiosk-watchdog.sh
 
-log "Setup abgeschlossen. Bitte neu starten."
+echo "→ Browser-Watchdog in Autostart eintragen..."
+mkdir -p ~/.config/autostart
+cat > ~/.config/autostart/watchdog.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Name=Kiosk Watchdog
+Exec=/home/pi/kiosk-watchdog.sh
+EOF
+
+echo "→ Netzwerk-Watchdog erstellen..."
+cat > ~/network-watchdog.sh <<EOF
+#!/bin/bash
+
+WEBSITE_URL="$WEBSITE_URL"
+FALLBACK_URL="$FALLBACK_URL"
+
+while true; do
+    if ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+        xdotool search --onlyvisible --class chromium windowactivate --sync key --clearmodifiers "ctrl+l" type "\$WEBSITE_URL" key Return
+    else
+        xdotool search --onlyvisible --class chromium windowactivate --sync key --clearmodifiers "ctrl+l" type "\$FALLBACK_URL" key Return
+    fi
+    sleep 10
+done
+EOF
+
+chmod +x ~/network-watchdog.sh
+
+echo "→ Netzwerk-Watchdog in Autostart eintragen..."
+cat > ~/.config/autostart/network-watchdog.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Name=Network Watchdog
+Exec=/home/pi/network-watchdog.sh
+EOF
+
+echo "→ Offline-Fallback vorbereiten..."
+mkdir -p ~/offline
+cat > ~/offline/index.html <<EOF
+<html>
+  <body style="background:black;color:white;font-size:40px;text-align:center;padding-top:20%;">
+    <p>Offline – Verbindung wird wiederhergestellt…</p>
+  </body>
+</html>
+EOF
+
+echo "→ Täglichen Reboot um 04:00 Uhr einrichten..."
+sudo bash -c '(crontab -l 2>/dev/null; echo "0 4 * * * /sbin/reboot") | crontab -'
+
 echo "=== Installation abgeschlossen ==="
+echo "Bitte Raspberry Pi neu starten."
