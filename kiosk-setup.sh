@@ -61,6 +61,30 @@ Exec=$USER_HOME/kiosk.sh
 X-GNOME-Autostart-enabled=true
 EOF
 
+
+cat > "$USER_HOME/.config/systemd/user/chromium-kiosk.service" <<EOF
+[Unit]
+Description=Chromium Kiosk Mode
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/chromium-browser \
+  --kiosk https://lvm.arsolex.tech \
+  --noerrdialogs --disable-infobars --disable-session-crashed-bubble \
+  --autoplay-policy=no-user-gesture-required \
+  --disable-dev-shm-usage --no-first-run --no-default-browser-check \
+  --ozone-platform-hint=auto --enable-features=UseOzonePlatform \
+  --start-fullscreen
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+
+
+EOF
+
+
 chown -R pi:pi "$USER_HOME/.config"
 
 # ==========================
