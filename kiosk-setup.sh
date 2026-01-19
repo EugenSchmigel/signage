@@ -1,98 +1,84 @@
 #!/bin/bash
 
-echo "=== Raspberry Pi 5 – Wayland Chromium Kiosk Setup ==="
+# ============================================
+# Raspberry Pi OS Lite Kiosk Installer (Pi 5)
+# ============================================
 
-USER="pi"
-USER_HOME="/home/$USER"
-WEB_SITE= "https://test.test.tech"
+URL="https://DEINE-WEBSITE.de"
 
-# ==========================
-# Pakete installieren
-# ==========================
+echo "System aktualisieren..."
+sudo apt update && sudo apt upgrade -y
 
-sudo apt update
-sudo apt install -y chromium-browser unclutter xdotool
+echo "Benötigte Pakete installieren..."
+sudo apt install --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox -y
+sudo apt install chromium curl -y
+sudo apt install v4l2loopback-utils mesa-va-drivers -y
 
-# ==========================
-# Autologin aktivieren
-# ==========================
-
-sudo mkdir -p /etc/systemd/system/getty@tty1.service.d
-sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf >/dev/null <<EOF
-[Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin pi --noclear %I \$TERM
+echo "Chromium Hardwarebeschleunigung aktivieren..."
+mkdir -p ~/.config/chromium
+cat <<EOF > ~/.config/chromium/Default/Preferences
+{
+  "hardware_acceleration_mode": {
+    "enabled": true
+  }
+}
 EOF
 
-sudo systemctl daemon-reexec
+echo "Openbox Autostart konfigurieren..."
+mkdir -p ~/.config/openbox
+cat <<EOF > ~/.config/openbox/autostart
+xset s off
+xset -dpms
+xset s noblank
+/usr/local/bin/kiosk-loop.sh &
+EOF
 
-# ==========================
-# Wayland-Kiosk-Startscript
-# ==========================
-
-cat > "$USER_HOME/kiosk.sh" <<EOF
+echo "Xinitrc erstellen..."
+cat <<EOF > ~/.xinitrc
 #!/bin/bash
+xset s off
+xset -dpms
+xset s noblank
+/usr/local/bin/kiosk-loop.sh
+EOF
+chmod +x ~/.xinitrc
 
-# Warte kurz, bis Wayland vollständig läuft
-sleep 3
+echo "Chromium Loop-Skript erstellen..."
+sudo bash -c "cat <<EOF > /usr/local/bin/kiosk-loop.sh
+#!/bin/bash
+while true; do
+    chromium --enable-features=VaapiVideoDecoder --ignore-gpu-blocklist --noerrdialogs --disable-infobars --kiosk \"$URL\"
+    echo 'Chromium abgestürzt – Neustart in 3 Sekunden'
+    sleep 3
+done
+EOF"
+sudo chmod +x /usr/local/bin/kiosk-loop.sh
 
-chromium-browser --kiosk $WEB_SITE \
-  --noerrdialogs --disable-infobars --disable-session-crashed-bubble \
-  --autoplay-policy=no-user-gesture-required \
-  --disable-dev-shm-usage --no-first-run --no-default-browser-check \
-  --ozone-platform-hint=auto \
-  --enable-features=UseOzonePlatform \
-  --start-fullscreen
+echo "Watchdog-Skript erstellen..."
+sudo bash -c "cat <<EOF > /usr/local/bin/kiosk-watchdog.sh
+#!/bin/bash
+if ! curl -s --head \"$URL\" | grep '200 OK' > /dev/null; then
+    echo 'Website nicht erreichbar – Chromium wird neu gestartet'
+    pkill chromium
+    sleep 2
+    chromium --enable-features=VaapiVideoDecoder --ignore-gpu-blocklist --noerrdialogs --disable-infobars --kiosk \"$URL\" &
+fi
+EOF"
+sudo chmod +x /usr/local/bin/kiosk-watchdog.sh
+
+echo "Cronjobs einrichten..."
+( crontab -l 2>/dev/null; echo "*/2 * * * * /usr/local/bin/kiosk-watchdog.sh" ) | crontab -
+sudo bash -c "( crontab -l 2>/dev/null; echo '0 4 * * * /sbin/reboot' ) | crontab -"
+
+echo "Autologin aktivieren..."
+sudo raspi-config nonint do_boot_behaviour B2
+
+echo "Startx beim Login aktivieren..."
+cat <<EOF >> ~/.bash_profile
+if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ]; then
+  startx
+fi
 EOF
 
-chmod +x "$USER_HOME/kiosk.sh"
-chown pi:pi "$USER_HOME/kiosk.sh"
-
-# ==========================
-# Autostart unter Wayland
-# ==========================
-
-mkdir -p "$USER_HOME/.config/autostart"
-
-cat > "$USER_HOME/.config/autostart/kiosk.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=Chromium Kiosk
-Exec=$USER_HOME/kiosk.sh
-X-GNOME-Autostart-enabled=true
-EOF
-
-
-cat > "$USER_HOME/.config/systemd/user/chromium-kiosk.service" <<EOF
-[Unit]
-Description=Chromium Kiosk Mode
-After=graphical-session.target
-
-[Service]
-ExecStart=/usr/bin/chromium-browser \
-  --kiosk $WEB_SITE \
-  --noerrdialogs --disable-infobars --disable-session-crashed-bubble \
-  --autoplay-policy=no-user-gesture-required \
-  --disable-dev-shm-usage --no-first-run --no-default-browser-check \
-  --ozone-platform-hint=auto --enable-features=UseOzonePlatform \
-  --start-fullscreen
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-
-
-EOF
-
-
-chown -R pi:pi "$USER_HOME/.config"
-
-# ==========================
-# Mauszeiger ausblenden
-# ==========================
-
-sudo apt install -y unclutter
-echo "unclutter -idle 0.1 -root &" >> "$USER_HOME/.bashrc"
-
-echo "=== Setup abgeschlossen. Bitte neu starten: sudo reboot ==="
+echo "Installation abgeschlossen!"
+echo "Bitte Raspberry Pi neu starten."
