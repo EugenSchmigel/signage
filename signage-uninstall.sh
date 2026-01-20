@@ -111,6 +111,18 @@ if ask "Automatische Updates wieder aktivieren"; then
     echo "Automatische Updates wieder aktiviert."
 fi
 
+
+# ---------------------------------------------------------
+# Wayland wieder aktivieren (X11 deaktivieren)
+# ---------------------------------------------------------
+
+if ask "Wayland wieder aktivieren (Standardmodus wiederherstellen)"; then
+    sudo raspi-config nonint do_wayland W0
+    echo "Wayland aktiviert, X11 deaktiviert."
+fi
+
+
+
 # ---------------------------------------------------------
 # Config löschen
 # ---------------------------------------------------------
