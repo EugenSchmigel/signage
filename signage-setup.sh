@@ -78,11 +78,21 @@ fi
 # Mauszeiger ausblenden
 # ---------------------------------------------------------
 
+# Mauszeiger
 if ask "Mauszeiger ausblenden (unclutter installieren)"; then
     sudo apt install -y unclutter
-    echo "Mauszeiger wird ausgeblendet."
-    echo
+
+    mkdir -p "$AUTOSTART_DIR"
+    cat <<EOF > "$AUTOSTART_DIR/unclutter.desktop"
+[Desktop Entry]
+Type=Application
+Name=Unclutter
+Exec=unclutter -idle 0 -root
+EOF
+
+    echo "Mauszeiger wird ausgeblendet (Autostart eingerichtet)."
 fi
+
 
 # ---------------------------------------------------------
 # Watchdog aktivieren
