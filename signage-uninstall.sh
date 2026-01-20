@@ -7,7 +7,7 @@ SCREEN_FILE="$AUTOSTART_DIR/screen-settings.desktop"
 CHROMIUM_CUSTOM="/etc/chromium-browser/customizations/01-kiosk"
 
 echo "----------------------------------------"
-echo " Raspberry Pi Signage Uninstaller (interaktiv)"
+echo " Raspberry Pi Signage Uninstaller (interaktiv)."
 echo "----------------------------------------"
 echo
 
