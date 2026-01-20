@@ -1,4 +1,4 @@
-\#!/bin/bash
+#!/bin/bash
 
 CONFIG_FILE="/home/$USER/signage.conf"
 AUTOSTART_DIR="/home/$USER/.config/autostart"
