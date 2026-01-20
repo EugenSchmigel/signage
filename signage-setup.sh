@@ -123,7 +123,7 @@ fi
 # ---------------------------------------------------------
 
 if ask "Täglichen Neustart um 4 Uhr einrichten"; then
-    (sudo crontab -l 2>/dev/null; echo "0 4 * * * /sbin/reboot") | sudo crontab -
+    (sudo crontab -l 2>/dev/null; echo "0 4 * * * echo "Reboot triggered by cron at $(date)" >> /home/pi/cron-test.log && /sbin/reboot") | sudo crontab -
     echo "Cronjob eingerichtet."
     echo
 fi
