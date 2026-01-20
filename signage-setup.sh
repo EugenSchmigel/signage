@@ -24,13 +24,14 @@ echo
 # \---------------------------------------------------------
 
 ask() {
-read -p "$1 (j/n): " answer
-if \[\[ "$answer" == "j" \]\]; then
-return 0
-else
-return 1
-fi
+    read -p "$1 (j/n): " answer
+    if [[ "$answer" == "j" ]]; then
+        return 0
+    else
+        return 1
+    fi
 }
+
 
 # \---------------------------------------------------------
 
