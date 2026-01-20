@@ -19,6 +19,13 @@ echo "URL=$SIGNAGE_URL" > "$CONFIG_FILE"
 echo "Config gespeichert unter: $CONFIG_FILE"
 echo
 
+# Wayland deaktivieren (X11 aktivieren)
+if ask "Wayland deaktivieren und X11 aktivieren (empfohlen für Kiosk-Modus)"; then
+    sudo raspi-config nonint do_wayland W1
+    echo "Wayland deaktiviert, X11 aktiviert."
+fi
+
+
 # ---------------------------------------------------------
 # Abfragefunktion
 # ---------------------------------------------------------
