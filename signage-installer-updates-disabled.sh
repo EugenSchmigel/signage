@@ -11,10 +11,12 @@ echo " Raspberry Pi Signage Installer (interaktiv)"
 echo "----------------------------------------"
 echo
 
+
 ask() {
-read -p "$1 (j/n): " answer
-\[\[ "$answer" == "j" \]\]
+    read -p "$1 (j/n): " answer
+    [[ "$answer" == "j" ]]
 }
+
 
 # \---------------------------------------------------------
 
