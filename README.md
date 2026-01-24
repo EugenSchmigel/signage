@@ -10,15 +10,30 @@ Dieses Repository enthält ein vollständiges, professionelles Setup-Skript für
 ```bash
 git clone https://github.com/EugenSchmigel/signage.git
 cd signage
-chmod +x signage-installer-updates-disabled.sh
-chmod +x signage-setup.sh
+
+### 2. Dateien ausführbar machen
+chmod +x signage-installer-updates-disabled-vx.sh
 chmod +x signage-uninstall.sh
 
-./signage-installer-updates-disabled.sh
-./signage-setup.sh
+./signage-installer-updates-disabled-vx.sh
 ./signage-uninstall.sh
 
-Dann:
+### 3. Maus ausblenden
+sudo raspi-config
+-> 6 Advanced Option
+-> A7 Wayland
+-> W1 X11 
+
+
+### 4. Neustart
 sudo reboot
 
 
+
+
+
+=== Cronjob ===
+jeden Tag um 4 Uhr Chromium neustarten
+Command: crontab -e
+0 4 * * * /home/pi/restart-chromium.sh  >> /var/log/cron-restart-chromium.log 2>&1
+Logs: cat /var/log/cron-restart-chromium.log
