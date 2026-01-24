@@ -161,24 +161,27 @@ if ask "Täglichen Chromium-Neustart um 4 Uhr einrichten"; then
 cat <<EOF > "$RESTART_SCRIPT"
 #!/bin/bash
 
-CONFIG_FILE="$CONFIG_FILE"
-URL=\$(grep '^URL=' "\$CONFIG_FILE" | cut -d'=' -f2)
+CONFIG_FILE="/home/pi/signage.conf"
+URL=$(grep '^URL=' "$CONFIG_FILE" | cut -d'=' -f2)
 
-# Chromium beenden
-pkill chromium-browser || true
-sleep 5
-
-# Chromium neu starten
 export DISPLAY=:0
-export XDG_RUNTIME_DIR=/run/user/$(id -u "$USER_NAME")
+export XDG_RUNTIME_DIR=/run/user/1000
 
-chromium-browser \\
-  --kiosk \\
-  --noerrdialogs \\
-  --disable-infobars \\
-  --disable-session-crashed-bubble \\
-  --autoplay-policy=no-user-gesture-required \\
-  --incognito "\$URL" &
+echo "[INFO] Beende Chromium..."
+
+# Alle Chromium-Prozesse sicher beenden
+pkill -9 chromium 2>/dev/null
+pkill -9 chromium-browser 2>/dev/null
+pkill -9 chrome 2>/dev/null
+sleep 2
+
+# Chromium-Sperrdateien entfernen (verhindert 'Chromium läuft bereits')
+rm -f /home/pi/.config/chromium/Singleton*
+rm -f /home/pi/.config/chromium/Default/Preferences
+
+echo "[INFO] Starte Chromium neu..."
+
+chromium-browser --kiosk --no-first-run --no-default-browser-check --disable-infobars --disable-session-crashed-bubble --disable-features=TranslateUI --autoplay-policy=no-user-gesture-required --incognito --new-window "$URL" &
 EOF
 
     chmod +x "$RESTART_SCRIPT"
