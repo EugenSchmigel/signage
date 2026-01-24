@@ -35,5 +35,5 @@ sudo reboot
 === Cronjob ===
 jeden Tag um 4 Uhr Chromium neustarten
 Command: crontab -e
-0 4 * * * /home/pi/restart-chromium.sh  >> /var/log/cron-restart-chromium.log 2>&1
+0 4 * * * /home/pi/restart-chromium.sh  >> /home/pi/cron-restart-chromium.log 2>
 Logs: cat /var/log/cron-restart-chromium.log
