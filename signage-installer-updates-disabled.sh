@@ -8,7 +8,6 @@ AUTOSTART_DIR="$USER_HOME/.config/autostart"
 AUTOSTART_FILE="$AUTOSTART_DIR/chromium-kiosk.desktop"
 SCREEN_FILE="$AUTOSTART_DIR/screen-settings.desktop"
 CHROMIUM_CUSTOM="/etc/chromium-browser/customizations/01-kiosk"
-RESTART_SCRIPT="$USER_HOME/restart-chromium.sh"
 CHROMIUM_MONITOR="/usr/local/bin/chromium-monitor.sh"
 CHROMIUM_MONITOR_SERVICE="/etc/systemd/system/chromium-monitor.service"
 
@@ -148,48 +147,6 @@ if ask "Watchdog aktivieren und konfigurieren"; then
 fi
 
 
-# ---------------------------------------------------------
-# Chromium Restart Script via Cron
-# ---------------------------------------------------------
-echo
-echo "---------------------------------------------------------"
-echo " Chromium-Neustart statt Reboot"
-echo "---------------------------------------------------------"
-
-if ask "Täglichen Chromium-Neustart um 4 Uhr einrichten"; then
-
-cat <<EOF > "$RESTART_SCRIPT"
-#!/bin/bash
-
-CONFIG_FILE="/home/pi/signage.conf"
-URL=$(grep '^URL=' "$CONFIG_FILE" | cut -d'=' -f2)
-
-export DISPLAY=:0
-export XDG_RUNTIME_DIR=/run/user/1000
-
-echo "[INFO] Beende Chromium..."
-
-# Alle Chromium-Prozesse sicher beenden
-pkill -9 chromium 2>/dev/null
-pkill -9 chromium-browser 2>/dev/null
-pkill -9 chrome 2>/dev/null
-sleep 2
-
-# Chromium-Sperrdateien entfernen (verhindert 'Chromium läuft bereits')
-rm -f /home/pi/.config/chromium/Singleton*
-rm -f /home/pi/.config/chromium/Default/Preferences
-
-echo "[INFO] Starte Chromium neu..."
-
-chromium-browser --kiosk --no-first-run --no-default-browser-check --disable-infobars --disable-session-crashed-bubble --disable-features=TranslateUI --autoplay-policy=no-user-gesture-required --incognito --new-window "$URL" &
-EOF
-
-    chmod +x "$RESTART_SCRIPT"
-
-    (crontab -l 2>/dev/null; echo "0 4 * * * $RESTART_SCRIPT") | crontab -
-
-    echo "Chromium-Neustart-Cronjob eingerichtet: täglich 4:00 Uhr."
-fi
 
 
 # ---------------------------------------------------------
