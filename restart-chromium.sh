@@ -8,6 +8,7 @@ USER_NAME="pi"
 RESTART_SCRIPT="/home/pi/chromium_restart.sh"
 CONFIG_FILE="/home/pi/signage.conf"
 CRON_TIME="0 4 * * *"   # täglich um 4 Uhr
+LOGFILE="/home/pi/cron-restart-chromium.log"
 
 # ---------------------------------------------------------
 # Hilfsfunktionen
@@ -91,6 +92,10 @@ EOF
 
     echo "[INFO] Trage Cronjob ein..."
 
+    # Logfile anlegen
+    touch "$LOGFILE"
+    chmod 664 "$LOGFILE"
+
     # Cron-Befehl abhängig vom User
     if [ "$(id -u)" = "0" ]; then
         CRON_CMD="crontab -u $USER_NAME"
@@ -101,10 +106,10 @@ EOF
     # Cronjob ohne Duplikate eintragen
     (
         $CRON_CMD -l 2>/dev/null | grep -v "$RESTART_SCRIPT" || true
-        echo "$CRON_TIME $RESTART_SCRIPT"
+        echo "$CRON_TIME $RESTART_SCRIPT >> $LOGFILE 2>&1"
     ) | $CRON_CMD -
 
-    echo "[INFO] Chromium-Neustart-Cronjob eingerichtet."
+    echo "Chromium-Neustart-Cronjob eingerichtet: täglich 4:00 Uhr."
 
     # ---------------------------------------------------------
     # 3. Testlauf (nur wenn grafische Session aktiv)
@@ -116,7 +121,7 @@ EOF
             sudo -u "$USER_NAME" DISPLAY=:0 XDG_RUNTIME_DIR=/run/user/1000 "$RESTART_SCRIPT"
             echo "[INFO] Testlauf abgeschlossen."
         else
-            echo "[WARNUNG] Keine grafische Session aktiv – Testlauf übersprungen."
+            echo "[WARNUNG] Keine grafische Session aktiv – Testlauf wird übersprungen."
             echo "Der Cronjob funktioniert trotzdem, aber der Test kann nur im Desktop laufen."
         fi
     fi
