@@ -5,7 +5,7 @@ set -euo pipefail
 RESTART_SCRIPT="/home/pi/chromium_restart.sh"
 CONFIG_FILE="/home/pi/signage.conf"
 CRON_TIME="0 4 * * *"   # täglich um 4:00 Uhr
-USER_NAME="pi"          # ggf. anpassen, falls anderes Userkonto
+USER_NAME="pi"          # ggf. anpassen, falls anderes Userkonto.
 
 ask() {
     local prompt="$1"
