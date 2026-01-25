@@ -9,8 +9,6 @@ AUTOSTART_DIR="$USER_HOME/.config/autostart"
 AUTOSTART_FILE="$AUTOSTART_DIR/chromium-kiosk.desktop"
 SCREEN_FILE="$AUTOSTART_DIR/screen-settings.desktop"
 
-RESTART_SCRIPT="$USER_HOME/restart-chromium.sh"
-
 CHROMIUM_CUSTOM="/etc/chromium-browser/customizations/01-kiosk"
 
 CHROMIUM_MONITOR="/usr/local/bin/chromium-monitor.sh"
@@ -46,16 +44,6 @@ fi
 if ask "Signage-Konfigurationsdatei entfernen ($CONFIG_FILE)"; then
     rm -f "$CONFIG_FILE"
     echo "Config entfernt."
-fi
-
-
-# ---------------------------------------------------------
-# Chromium Restart Script entfernen
-# ---------------------------------------------------------
-if ask "Täglichen Chromium-Neustart entfernen"; then
-    crontab -l 2>/dev/null | grep -v "restart-chromium.sh" | crontab - || true
-    rm -f "$RESTART_SCRIPT"
-    echo "Restart-Script und Cronjob entfernt."
 fi
 
 
